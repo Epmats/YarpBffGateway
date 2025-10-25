@@ -1,3 +1,4 @@
+using Gateway.Config;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http.Headers;
@@ -17,7 +18,7 @@ using Duende.AccessTokenManagement.OpenIdConnect;
 var builder = WebApplication.CreateBuilder(args);
 var cookieLifetime = TimeSpan.FromHours(12);
 
-ConfigureTenantConfiguration(builder);
+TenantConfiguration.Configure(builder);
 
 builder.Services.AddControllers();
 
@@ -215,46 +216,6 @@ app.MapControllerRoute(name: "default", pattern: "{controller}/{action=Index}/{i
 app.MapReverseProxy();
 
 app.Run();
-
-static void ConfigureTenantConfiguration(WebApplicationBuilder builder)
-{
-    var environment = builder.Environment;
-    var configuration = builder.Configuration;
-
-    var tenant =
-        Environment.GetEnvironmentVariable("GATEWAY_TENANT") ??
-        configuration["Gateway:Tenant"] ??
-        configuration["Tenant"];
-
-    if (string.IsNullOrWhiteSpace(tenant))
-    {
-        return;
-    }
-
-    tenant = tenant.Trim();
-
-    var tenantPrefix = tenant.ToLowerInvariant();
-    var envName = environment.EnvironmentName ?? string.Empty;
-
-    var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        $"{tenantPrefix}.appsettings.json"
-    };
-
-    if (!string.IsNullOrWhiteSpace(envName))
-    {
-        candidates.Add($"{tenantPrefix}.appsettings.{envName}.json");
-        candidates.Add($"{tenantPrefix}.appsettings.{envName.ToUpperInvariant()}.json");
-        candidates.Add($"{tenantPrefix}.appsettings.{envName.ToLowerInvariant()}.json");
-    }
-
-    foreach (var file in candidates)
-    {
-        configuration.AddJsonFile(file, optional: true, reloadOnChange: true);
-    }
-
-    configuration["Gateway:Tenant"] = tenant;
-}
 
 static bool IsApiRequest(HttpRequest request)
 {
