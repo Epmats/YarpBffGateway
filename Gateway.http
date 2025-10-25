@@ -1,0 +1,12 @@
+﻿@Gateway_HostAddress = http://localhost:5287
+
+GET {{Gateway_HostAddress}}/check_session
+Accept: application/json
+
+###
+
+GET {{Gateway_HostAddress}}/login
+Accept: application/json
+
+###
+

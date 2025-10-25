@@ -1,0 +1,64 @@
+﻿{
+  "CorsSettings": {
+    "AllowedOrigins": [ "https://localhost:7197", "https://localhost:3000" ]
+  },
+  "BffSettings": {
+    "RedirectSite": "https://localhost:7197"
+  },
+  "OpenIdConnect": {
+    "Authority": "https://example.Authority",
+    "ClientId": "ClientId",
+    "ClientSecret": "ClientSecret",
+    "SignInScheme": "Cookies",
+    "SignOutScheme": "Cookies",
+    "SaveTokens": true,
+    "ResponseType": "code",
+    "ResponseMode": "query",
+    "GetClaimsFromUserInfoEndpoint": true,
+    "RequireHttpsMetadata": false,
+    "TokenEndpoint": "https://example.Authority/connect/token",
+    "BearerTokenLocation": "access_token"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Information"
+    }
+  },
+  "AllowedHosts": "*",
+  "ReverseProxy": {
+    "Routes": {
+      "webapi": {
+        "ClusterId": "webapi",
+        "AuthorizationPolicy": "default",
+        "Match": {
+          "Path": "/api/{**catch-all}"
+        },
+        "Order": 1
+      },
+      "frontend": {
+        "ClusterId": "frontend",
+        "Match": {
+          "Path": "/{**catch-all}"
+        },
+        "Order": 10
+      }
+    },
+    "Clusters": {
+      "webapi": {
+        "Destinations": {
+          "webapi": {
+            "Address": "https://localhost:7011/"
+          }
+        }
+      },
+      "frontend": {
+        "Destinations": {
+          "frontend": {
+            "Address": "https://localhost:3000/"
+          }
+        }
+      }
+    }
+  }
+}
