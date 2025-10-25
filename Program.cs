@@ -22,9 +22,6 @@ ConfigureTenantConfiguration(builder);
 builder.Services.AddControllers();
 
 var configuration = builder.Configuration;
-var oidcScopes = configuration
-    .GetSection("OpenIdConnect:Scopes")
-    .Get<string[]>() ?? Array.Empty<string>();
 
 builder.Services.Configure<Settings>(
     builder.Configuration.GetSection("BffSettings"));
@@ -71,26 +68,6 @@ builder
     .AddOpenIdConnect(options =>
     {
         configuration.Bind("OpenIdConnect", options);
-        options.Scope.Clear();
-
-        var scopesToRequest = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "openid",
-            "offline_access"
-        };
-
-        foreach (var scope in oidcScopes)
-        {
-            if (!string.IsNullOrWhiteSpace(scope))
-            {
-                scopesToRequest.Add(scope.Trim());
-            }
-        }
-
-        foreach (var scope in scopesToRequest)
-        {
-            options.Scope.Add(scope);
-        }
 
         options.Events.OnTicketReceived = context =>
         {

@@ -15,6 +15,7 @@
     "ResponseType": "code",
     "ResponseMode": "query",
     "GetClaimsFromUserInfoEndpoint": true,
+    "Scopes": [ "openid", "offline_access" ],
     "RequireHttpsMetadata": false,
     "TokenEndpoint": "https://example.Authority/connect/token",
     "BearerTokenLocation": "access_token"
