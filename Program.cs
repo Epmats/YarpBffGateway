@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http.Headers;
 using Gateway.Controllers;
@@ -136,124 +136,127 @@ builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
     .AddTransforms(builderContext =>
     {
-
-        builderContext.AddRequestTransform(async transformContext =>
+        if (string.Equals(builderContext.Route.AuthorizationPolicy, "default", StringComparison.OrdinalIgnoreCase))
         {
-            var httpContext = transformContext.HttpContext;
-            if (httpContext?.User?.Identity?.IsAuthenticated != true)
+            builderContext.AddRequestTransform(async transformContext =>
             {
-                return;
-            }
-
-            var authResult = await httpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            var properties = authResult?.Properties;
-
-            var openIdOptions = httpContext.RequestServices
-                .GetRequiredService<IOptions<OpenIdConnect>>();
-
-            var tokenLocation = openIdOptions.Value.BearerTokenLocation;
-
-            var expiresAtValue = properties?.GetTokenValue("expires_at");
-            UserTokenRequestParameters? tokenParameters = null;
-
-            if (!string.IsNullOrWhiteSpace(expiresAtValue) &&
-                DateTimeOffset.TryParse(
-                    expiresAtValue,
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                    out var expiresAtUtc) &&
-                expiresAtUtc <= DateTimeOffset.UtcNow)
-            {
-                tokenParameters = new UserTokenRequestParameters { ForceRenewal = true };
-            }
-
-            UserToken? userToken;
-
-            try
-            {
-                userToken = await httpContext.GetUserAccessTokenAsync(tokenParameters);
-            }
-            catch
-            {
-                await SignOutAsync(httpContext);
-                return;
-            }
-
-            if (userToken == null || !string.IsNullOrWhiteSpace(userToken.Error))
-            {
-                await SignOutAsync(httpContext);
-                return;
-            }
-
-            var accessToken = userToken.AccessToken;
-            if (string.IsNullOrWhiteSpace(accessToken))
-            {
-                await SignOutAsync(httpContext);
-                return;
-            }
-
-            var refreshToken = userToken.RefreshToken;
-
-            if (properties != null && authResult?.Principal != null)
-            {
-                var tokensUpdated = false;
-
-                var storedAccessToken = properties.GetTokenValue("access_token");
-                if (!string.Equals(storedAccessToken, accessToken, StringComparison.Ordinal))
+                var httpContext = transformContext.HttpContext;
+                if (httpContext?.User?.Identity?.IsAuthenticated != true)
                 {
-                    properties.UpdateTokenValue("access_token", accessToken);
-                    tokensUpdated = true;
+                    return;
                 }
 
-                if (!string.IsNullOrWhiteSpace(refreshToken))
+                var authResult =
+                    await httpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                var properties = authResult?.Properties;
+
+                var openIdOptions = httpContext.RequestServices
+                    .GetRequiredService<IOptions<OpenIdConnect>>();
+
+                var tokenLocation = openIdOptions.Value.BearerTokenLocation;
+
+                var expiresAtValue = properties?.GetTokenValue("expires_at");
+                UserTokenRequestParameters? tokenParameters = null;
+
+                if (!string.IsNullOrWhiteSpace(expiresAtValue) &&
+                    DateTimeOffset.TryParse(
+                        expiresAtValue,
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                        out var expiresAtUtc) &&
+                    expiresAtUtc <= DateTimeOffset.UtcNow)
                 {
-                    var storedRefreshToken = properties.GetTokenValue("refresh_token");
-                    if (!string.Equals(storedRefreshToken, refreshToken, StringComparison.Ordinal))
+                    tokenParameters = new UserTokenRequestParameters { ForceRenewal = true };
+                }
+
+                UserToken? userToken;
+
+                try
+                {
+                    userToken = await httpContext.GetUserAccessTokenAsync(tokenParameters);
+                }
+                catch
+                {
+                    await SignOutAsync(httpContext);
+                    return;
+                }
+
+                if (userToken == null || !string.IsNullOrWhiteSpace(userToken.Error))
+                {
+                    await SignOutAsync(httpContext);
+                    return;
+                }
+
+                var accessToken = userToken.AccessToken;
+                if (string.IsNullOrWhiteSpace(accessToken))
+                {
+                    await SignOutAsync(httpContext);
+                    return;
+                }
+
+                var refreshToken = userToken.RefreshToken;
+
+                if (properties != null && authResult?.Principal != null)
+                {
+                    var tokensUpdated = false;
+
+                    var storedAccessToken = properties.GetTokenValue("access_token");
+                    if (!string.Equals(storedAccessToken, accessToken, StringComparison.Ordinal))
                     {
-                        properties.UpdateTokenValue("refresh_token", refreshToken);
+                        properties.UpdateTokenValue("access_token", accessToken);
                         tokensUpdated = true;
                     }
-                }
 
-                if (tokensUpdated)
-                {
-                    await httpContext.SignInAsync(
-                        CookieAuthenticationDefaults.AuthenticationScheme,
-                        authResult.Principal,
-                        properties);
-                }
-            }
-
-            string tokenToForward = accessToken;
-
-            if (!string.IsNullOrWhiteSpace(tokenLocation) &&
-                !string.Equals(tokenLocation, "access_token", StringComparison.OrdinalIgnoreCase))
-            {
-                if (string.Equals(tokenLocation, "refresh_token", StringComparison.OrdinalIgnoreCase))
-                {
-                    tokenToForward = !string.IsNullOrWhiteSpace(refreshToken)
-                        ? refreshToken
-                        : properties?.GetTokenValue("refresh_token") ?? tokenToForward;
-                }
-                else
-                {
-                    var fromProperties = properties?.GetTokenValue(tokenLocation);
-                    if (!string.IsNullOrWhiteSpace(fromProperties))
+                    if (!string.IsNullOrWhiteSpace(refreshToken))
                     {
-                        tokenToForward = fromProperties;
+                        var storedRefreshToken = properties.GetTokenValue("refresh_token");
+                        if (!string.Equals(storedRefreshToken, refreshToken, StringComparison.Ordinal))
+                        {
+                            properties.UpdateTokenValue("refresh_token", refreshToken);
+                            tokensUpdated = true;
+                        }
+                    }
+
+                    if (tokensUpdated)
+                    {
+                        await httpContext.SignInAsync(
+                            CookieAuthenticationDefaults.AuthenticationScheme,
+                            authResult.Principal,
+                            properties);
                     }
                 }
-            }
 
-            if (string.IsNullOrWhiteSpace(tokenToForward))
-            {
-                await SignOutAsync(httpContext);
-                return;
-            }
+                string tokenToForward = accessToken;
 
-            transformContext.ProxyRequest.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", tokenToForward);
-        });
+                if (!string.IsNullOrWhiteSpace(tokenLocation) &&
+                    !string.Equals(tokenLocation, "access_token", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.Equals(tokenLocation, "refresh_token", StringComparison.OrdinalIgnoreCase))
+                    {
+                        tokenToForward = !string.IsNullOrWhiteSpace(refreshToken)
+                            ? refreshToken
+                            : properties?.GetTokenValue("refresh_token") ?? tokenToForward;
+                    }
+                    else
+                    {
+                        var fromProperties = properties?.GetTokenValue(tokenLocation);
+                        if (!string.IsNullOrWhiteSpace(fromProperties))
+                        {
+                            tokenToForward = fromProperties;
+                        }
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(tokenToForward))
+                {
+                    await SignOutAsync(httpContext);
+                    return;
+                }
+
+                transformContext.ProxyRequest.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", tokenToForward);
+            });
+        }
     });
 
 var app = builder.Build();
