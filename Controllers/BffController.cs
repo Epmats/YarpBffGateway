@@ -1,10 +1,8 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Microsoft.AspNetCore.Authentication;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Cors;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
@@ -18,12 +16,10 @@ public class BffController : Controller
 {
     public const string CorsPolicyName = "Bff";
     private readonly Settings _settings;
-    private readonly ILogger<BffController> _logger;
 
-    public BffController(IOptions<Settings> options, ILogger<BffController> logger)
+    public BffController(IOptions<Settings> options)
     {
         _settings = options.Value;
-        _logger = logger;
     }
 
     [HttpGet("check_session")]
