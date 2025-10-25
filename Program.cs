@@ -5,6 +5,7 @@ using Gateway.Controllers;
 using Microsoft.AspNetCore.Authentication;
 using Yarp.ReverseProxy.Transforms;
 using Gateway.Config;
+using Gateway.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Http;
@@ -115,6 +116,7 @@ builder.Services.AddUserAccessTokenHttpClient("apiClient", configureClient: clie
 builder.Services.AddHttpClient("oidc");            // enkel HttpClient för discovery/refresh
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddDistributedMemoryCache();
+builder.Services.AddScoped<ITokenRefreshService, TokenRefreshService>();
 
 builder.Services.AddCors(options =>
     options.AddPolicy(
@@ -156,7 +158,7 @@ builder.Services.AddReverseProxy()
                 var tokenLocation = openIdOptions.Value.BearerTokenLocation;
 
                 var expiresAtValue = properties?.GetTokenValue("expires_at");
-                UserTokenRequestParameters? tokenParameters = null;
+                string? accessToken = null;
 
                 if (!string.IsNullOrWhiteSpace(expiresAtValue) &&
                     DateTimeOffset.TryParse(
@@ -166,65 +168,21 @@ builder.Services.AddReverseProxy()
                         out var expiresAtUtc) &&
                     expiresAtUtc <= DateTimeOffset.UtcNow)
                 {
-                    tokenParameters = new UserTokenRequestParameters { ForceRenewal = true };
+                    var tokenRefreshService = httpContext.RequestServices.GetRequiredService<ITokenRefreshService>();
+                    accessToken = await tokenRefreshService.RefreshTokenAsync(httpContext);
                 }
-
-                UserToken? userToken;
-
-                try
+                else
                 {
-                    userToken = await httpContext.GetUserAccessTokenAsync(tokenParameters);
-                }
-                catch
-                {
-                    await SignOutAsync(httpContext);
-                    return;
+                    accessToken = await httpContext.GetUserAccessTokenAsync();
                 }
 
-                if (userToken == null || !string.IsNullOrWhiteSpace(userToken.Error))
-                {
-                    await SignOutAsync(httpContext);
-                    return;
-                }
-
-                var accessToken = userToken.AccessToken;
                 if (string.IsNullOrWhiteSpace(accessToken))
                 {
                     await SignOutAsync(httpContext);
                     return;
                 }
 
-                var refreshToken = userToken.RefreshToken;
-
-                if (properties != null && authResult?.Principal != null)
-                {
-                    var tokensUpdated = false;
-
-                    var storedAccessToken = properties.GetTokenValue("access_token");
-                    if (!string.Equals(storedAccessToken, accessToken, StringComparison.Ordinal))
-                    {
-                        properties.UpdateTokenValue("access_token", accessToken);
-                        tokensUpdated = true;
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(refreshToken))
-                    {
-                        var storedRefreshToken = properties.GetTokenValue("refresh_token");
-                        if (!string.Equals(storedRefreshToken, refreshToken, StringComparison.Ordinal))
-                        {
-                            properties.UpdateTokenValue("refresh_token", refreshToken);
-                            tokensUpdated = true;
-                        }
-                    }
-
-                    if (tokensUpdated)
-                    {
-                        await httpContext.SignInAsync(
-                            CookieAuthenticationDefaults.AuthenticationScheme,
-                            authResult.Principal,
-                            properties);
-                    }
-                }
+                var refreshToken = properties?.GetTokenValue("refresh_token");
 
                 string tokenToForward = accessToken;
 
@@ -233,9 +191,7 @@ builder.Services.AddReverseProxy()
                 {
                     if (string.Equals(tokenLocation, "refresh_token", StringComparison.OrdinalIgnoreCase))
                     {
-                        tokenToForward = !string.IsNullOrWhiteSpace(refreshToken)
-                            ? refreshToken
-                            : properties?.GetTokenValue("refresh_token") ?? tokenToForward;
+                        tokenToForward = refreshToken ?? tokenToForward;
                     }
                     else
                     {
