@@ -70,13 +70,6 @@ builder
     {
         configuration.Bind("OpenIdConnect", options);
 
-        // The new IdP uses PKCE and expects no client secret.
-        // By explicitly setting UsePkce to true and ClientSecret to null,
-        // we ensure the handler uses the PKCE flow without sending a secret,
-        // which can cause 403 Forbidden errors from some providers.
-        options.UsePkce = true;
-        options.ClientSecret = null;
-
         options.Events.OnTicketReceived = context =>
         {
             var now = DateTimeOffset.UtcNow;
