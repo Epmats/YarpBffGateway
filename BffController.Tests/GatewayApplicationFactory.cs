@@ -27,7 +27,9 @@ public class GatewayApplicationFactory : WebApplicationFactory<Program>
             config.AddInMemoryCollection(new[]
             {
                 new KeyValuePair<string, string>("ReverseProxy:Clusters:cluster1:Destinations:destination1:Address", DownstreamApiBaseUrl),
-                new KeyValuePair<string, string>("OpenIdConnect:Authority", OidcServerUrl)
+                new KeyValuePair<string, string>("OpenIdConnect:Authority", OidcServerUrl),
+                new KeyValuePair<string, string>("OpenIdConnect:ClientId", "test-client"),
+                new KeyValuePair<string, string>("OpenIdConnect:Scope", "openid offline_access")
             });
         });
 

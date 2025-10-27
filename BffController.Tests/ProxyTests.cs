@@ -74,7 +74,14 @@ public class ProxyTests : IClassFixture<GatewayApplicationFactory>, IAsyncLifeti
             .RespondWith(Response.Create().WithStatusCode(200).WithBodyAsJson(new { token_endpoint = $"{_oidcServer.Url}/connect/token" }));
 
         _oidcServer
-            .Given(Request.Create().WithPath("/connect/token").UsingPost())
+            .Given(Request.Create().WithPath("/connect/token").UsingPost()
+                .WithHeader("Content-Type", "application/x-www-form-urlencoded")
+                .WithBody(body =>
+                    body.Contains("grant_type=refresh_token") &&
+                    body.Contains("refresh_token=dummy_refresh_token") &&
+                    body.Contains("client_id=test-client") &&
+                    body.Contains("scope=openid offline_access")
+                ))
             .RespondWith(Response.Create().WithStatusCode(200).WithBodyAsJson(new { access_token = "new_access_token", refresh_token = "new_refresh_token" }));
 
         _downstreamApi
